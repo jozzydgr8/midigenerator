@@ -10,7 +10,6 @@ function getDiatonicChords(scaleRoot, scaleType) {
 
   if (!notes.length) return [];
 
-  // Basic triads for major/minor scales
   const triads = scaleType === 'major'
     ? ['maj', 'min', 'min', 'maj', 'maj', 'min', 'dim']
     : ['min', 'dim', 'maj', 'min', 'min', 'maj', 'maj'];
@@ -21,13 +20,13 @@ function getDiatonicChords(scaleRoot, scaleType) {
 // Afrobeat-style chord progressions (degrees)
 function generateAfrobeatsProgression(chords) {
   const afrobeatsProgressions = [
-    [1, 5, 6, 4], // I–V–vi–IV
-    [6, 4, 1, 5], // vi–IV–I–V
-    [2, 5, 1, 1], // ii–V–I–I
-    [1, 4, 5, 4], // I–IV–V–IV
-    [4, 1, 5, 6], // IV–I–V–vi
-    [6, 5, 4, 5], // vi–V–IV–V
-    [1, 6, 4, 5], // I–vi–IV–V
+    [1, 5, 6, 4],
+    [6, 4, 1, 5],
+    [2, 5, 1, 1],
+    [1, 4, 5, 4],
+    [4, 1, 5, 6],
+    [6, 5, 4, 5],
+    [1, 6, 4, 5],
   ];
 
   const template = afrobeatsProgressions[
@@ -47,6 +46,35 @@ function invertChord(notes, inversion = 0) {
     inverted.push(noteName + (octave + 1));
   }
   return inverted;
+}
+
+// Generate a syncopated melody using pentatonic scale
+function generateAfrobeatMelody(scaleRoot, scaleType, numberOfBars = 4) {
+  const pentatonicType = scaleType === 'major' ? 'major pentatonic' : 'minor pentatonic';
+  const scale = Scale.get(`${scaleRoot} ${pentatonicType}`);
+  const notes = scale.notes;
+  if (!notes.length) return [];
+
+  const melody = [];
+
+  for (let bar = 0; bar < numberOfBars; bar++) {
+    const beats = 4;
+    for (let beat = 0; beat < beats * 2; beat++) {
+      // Offbeat emphasis, ~60% chance of note
+      if (Math.random() < 0.6) {
+        const note = notes[Math.floor(Math.random() * notes.length)];
+        const octave = 5 + Math.floor(Math.random() * 2); // Octave 5 or 6
+        melody.push({
+          pitch: `${note}${octave}`,
+          startTick: bar * 512 + beat * 32 + Math.floor(Math.random() * 10 - 5),
+          duration: '8',
+          velocity: Math.floor(Math.random() * 30) + 90,
+        });
+      }
+    }
+  }
+
+  return melody;
 }
 
 export default function Home() {
@@ -69,46 +97,48 @@ export default function Home() {
       return;
     }
 
-    // Build chord pool with correct qualities
     const chordPool = getDiatonicChords(root, type);
     if (!chordPool.length) {
       alert("Could not generate chords for the provided scale.");
       return;
     }
 
-    // Generate progression using chord pool (diatonic chords)
     const chordDegrees = generateAfrobeatsProgression(chordPool);
-
-    // Set chord symbols for display
     setProgression(chordDegrees);
 
-    // Create MIDI track and set instrument (Acoustic Grand Piano)
     const track = new MidiWriter.Track();
-    track.addEvent(new MidiWriter.ProgramChangeEvent({ instrument: 1 }));
+    track.addEvent(new MidiWriter.ProgramChangeEvent({ instrument: 1 })); // Acoustic Grand Piano
 
+    // Add chords
     chordDegrees.forEach((chordSymbol, index) => {
       const chordObj = Chord.get(chordSymbol);
-      let notes = chordObj.notes.map(n => n + '4'); // octave 4 base
-
-      // Random inversion 0-2
+      let notes = chordObj.notes.map(n => n + '4');
       const inversion = Math.floor(Math.random() * 3);
       notes = invertChord(notes, inversion);
 
-      // Velocity variation for realism
       const velocity = Math.floor(Math.random() * 30) + 80;
-
-      // Timing offset ±10 ticks for humanization
       const offset = Math.floor(Math.random() * 20) - 10;
 
       track.addEvent(new MidiWriter.NoteEvent({
         pitch: notes,
-        duration: '1', // whole note
+        duration: '1',
         startTick: index * 512 + offset,
         velocity,
       }));
     });
 
-    // Write MIDI file and trigger download
+    // Add melody
+    const melodyNotes = generateAfrobeatMelody(root, type);
+    melodyNotes.forEach(note => {
+      track.addEvent(new MidiWriter.NoteEvent({
+        pitch: [note.pitch],
+        duration: note.duration,
+        startTick: note.startTick,
+        velocity: note.velocity,
+      }));
+    });
+
+    // Create and download MIDI
     const write = new MidiWriter.Writer(track);
     const blob = new Blob([write.buildFile()], { type: "audio/midi" });
 
@@ -125,7 +155,7 @@ export default function Home() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h2>Afrobeats Chord Progression MIDI Generator (Realistic)</h2>
+      <h2>Afrobeats Chord Progression + Melody MIDI Generator</h2>
       <input
         type="text"
         value={scaleInput}
